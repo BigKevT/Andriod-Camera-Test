@@ -20,18 +20,21 @@ const CameraView = () => {
   const [showZoom, setShowZoom] = useState(false);
   const [focusPoint, setFocusPoint] = useState(null); // {x, y} for animation
 
+  const streamRef = useRef(null);
+
   const startCamera = useCallback(async () => {
     setLoading(true);
     setError(null);
     setTorchSupported(false);
     setShowZoom(false);
 
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+    // Use ref for cleanup to avoid dependency loop
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
     }
 
     try {
-      // Relaxed constraints: Remove focusMode from initial request
+      // Relaxed constraints
       const constraints = {
         video: {
           facingMode: facingMode,
@@ -44,6 +47,7 @@ const CameraView = () => {
 
       const newStream = await navigator.mediaDevices.getUserMedia(constraints);
       setStream(newStream);
+      streamRef.current = newStream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
@@ -52,28 +56,20 @@ const CameraView = () => {
       const track = newStream.getVideoTracks()[0];
       const capabilities = track.getCapabilities ? track.getCapabilities() : {};
 
-      // Check Torch
-      if (capabilities.torch) {
-        setTorchSupported(true);
-      }
+      if (capabilities.torch) setTorchSupported(true);
 
-      // Check Zoom
       let initialZoom = 1.0;
       if (capabilities.zoom) {
         setZoomRange({
           min: capabilities.zoom.min,
           max: capabilities.zoom.max
         });
-
-        // Sweet Spot Strategy: Default to 1.5x
         initialZoom = Math.min(Math.max(1.5, capabilities.zoom.min), capabilities.zoom.max);
         setZoom(initialZoom);
         setShowZoom(true);
       }
 
-      // Apply advanced settings SAFELY after stream is open
       if (track.applyConstraints) {
-        // 1. Try to apply Zoom
         if (capabilities.zoom) {
           try {
             await track.applyConstraints({ advanced: [{ zoom: initialZoom }] });
@@ -82,25 +78,24 @@ const CameraView = () => {
           }
         }
 
-        // 2. Try to apply Focus Mode
         try {
           await track.applyConstraints({
             advanced: [{
-              focusMode: 'continuous-picture',
+              // Use continuous-video for smoother, less hunting focus
+              focusMode: 'continuous-video',
               exposureMode: 'continuous-auto',
               whiteBalanceMode: 'auto'
             }]
           });
         } catch (e) {
-          console.warn("Failed to apply advanced focus/exposure:", e);
+          console.warn("Failed to apply advanced settings:", e);
         }
       }
 
       setLoading(false);
     } catch (err) {
       console.error("Error accessing camera:", err);
-      // Show more detailed error message
-      setError(`無法存取相機 (${err.name}: ${err.message})。請確保您已允許相機權限。`);
+      setError(`無法存取相機 (${err.name}: ${err.message})。`);
       setLoading(false);
     }
   }, [facingMode]);
@@ -108,11 +103,11 @@ const CameraView = () => {
   useEffect(() => {
     startCamera();
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, [startCamera, stream]); // Added stream to dependency array for cleanup logic
+  }, [startCamera]); // Added stream to dependency array for cleanup logic
 
   const handleZoomChange = async (e) => {
     const newZoom = parseFloat(e.target.value);
