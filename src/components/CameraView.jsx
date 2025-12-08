@@ -31,14 +31,13 @@ const CameraView = () => {
     }
 
     try {
+      // Relaxed constraints: Remove focusMode from initial request
       const constraints = {
         video: {
           facingMode: facingMode,
           aspectRatio: { ideal: 4 / 3 },
           width: { ideal: 4032 },
-          height: { ideal: 3024 },
-          // Try to force continuous focus for Samsung devices
-          focusMode: { ideal: 'continuous-picture' }
+          height: { ideal: 3024 }
         },
         audio: false
       };
@@ -66,36 +65,45 @@ const CameraView = () => {
           max: capabilities.zoom.max
         });
 
-        // Sweet Spot Strategy: Default to 1.5x (or min if > 1.5, or max if < 1.5)
-        // This forces the user to move back, avoiding MFD issues on flagship phones
+        // Sweet Spot Strategy: Default to 1.5x
         initialZoom = Math.min(Math.max(1.5, capabilities.zoom.min), capabilities.zoom.max);
         setZoom(initialZoom);
         setShowZoom(true);
       }
 
-      // Apply initial advanced constraints
+      // Apply advanced settings SAFELY after stream is open
       if (track.applyConstraints) {
+        // 1. Try to apply Zoom
+        if (capabilities.zoom) {
+          try {
+            await track.applyConstraints({ advanced: [{ zoom: initialZoom }] });
+          } catch (e) {
+            console.warn("Failed to apply initial zoom:", e);
+          }
+        }
+
+        // 2. Try to apply Focus Mode
         try {
           await track.applyConstraints({
             advanced: [{
               focusMode: 'continuous-picture',
               exposureMode: 'continuous-auto',
-              whiteBalanceMode: 'auto',
-              zoom: initialZoom
+              whiteBalanceMode: 'auto'
             }]
           });
         } catch (e) {
-          console.warn("Advanced constraints warning:", e);
+          console.warn("Failed to apply advanced focus/exposure:", e);
         }
       }
 
       setLoading(false);
     } catch (err) {
       console.error("Error accessing camera:", err);
-      setError("無法存取相機。請確保您已允許相機權限。(Unable to access camera.)");
+      // Show more detailed error message
+      setError(`無法存取相機 (${err.name}: ${err.message})。請確保您已允許相機權限。`);
       setLoading(false);
     }
-  }, [facingMode, stream]); // Added stream to dependency array for cleanup logic
+  }, [facingMode]);
 
   useEffect(() => {
     startCamera();
