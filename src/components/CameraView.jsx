@@ -275,21 +275,7 @@ const CameraView = () => {
         )}
       </div>
 
-      {/* Zoom Slider */}
-      {showZoom && (
-        <div className="zoom-controls">
-          <span>1x</span>
-          <input
-            type="range"
-            min={zoomRange.min}
-            max={Math.min(zoomRange.max, 5)} // Limit max zoom to 5x for UI
-            step="0.1"
-            value={zoom}
-            onChange={handleZoomChange}
-          />
-          <span>{Math.min(zoomRange.max, 5)}x</span>
-        </div>
-      )}
+
 
       <div className="camera-overlay">
         <div className="control-btn" style={{ opacity: capturedImage ? 1 : 0, pointerEvents: capturedImage ? 'auto' : 'none' }}>
