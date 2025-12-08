@@ -28,19 +28,21 @@ const CameraView = () => {
     setTorchSupported(false);
     setShowZoom(false);
 
-    // Use ref for cleanup to avoid dependency loop
+    // Cleanup previous stream immediately
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
 
     try {
-      // Relaxed constraints
+      // Very basic constraints to ensure compatibility
       const constraints = {
         video: {
           facingMode: facingMode,
-          aspectRatio: { ideal: 4 / 3 },
-          width: { ideal: 4032 },
-          height: { ideal: 3024 }
+          // Remove ideal resolution to avoid over-constraining
+          // aspectRatio: { ideal: 4 / 3 },
+          // width: { ideal: 4032 },
+          // height: { ideal: 3024 }
         },
         audio: false
       };
@@ -58,38 +60,16 @@ const CameraView = () => {
 
       if (capabilities.torch) setTorchSupported(true);
 
-      let initialZoom = 1.0;
+      // Only attempt Zoom if explicitly supported, and wrap in try-catch
+      // We skip the automatic "Sweet Spot" for now to ensure stability
       if (capabilities.zoom) {
         setZoomRange({
           min: capabilities.zoom.min,
           max: capabilities.zoom.max
         });
-        initialZoom = Math.min(Math.max(1.5, capabilities.zoom.min), capabilities.zoom.max);
-        setZoom(initialZoom);
+        // Optional: Set to 1.0 initially to be safe
+        setZoom(1.0);
         setShowZoom(true);
-      }
-
-      if (track.applyConstraints) {
-        if (capabilities.zoom) {
-          try {
-            await track.applyConstraints({ advanced: [{ zoom: initialZoom }] });
-          } catch (e) {
-            console.warn("Failed to apply initial zoom:", e);
-          }
-        }
-
-        try {
-          await track.applyConstraints({
-            advanced: [{
-              // Use continuous-video for smoother, less hunting focus
-              focusMode: 'continuous-video',
-              exposureMode: 'continuous-auto',
-              whiteBalanceMode: 'auto'
-            }]
-          });
-        } catch (e) {
-          console.warn("Failed to apply advanced settings:", e);
-        }
       }
 
       setLoading(false);
