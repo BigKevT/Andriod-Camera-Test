@@ -35,14 +35,13 @@ const CameraView = () => {
     }
 
     try {
-      // Very basic constraints to ensure compatibility
+      // 1. Request 4:3 aspect ratio (OCR optimized)
       const constraints = {
         video: {
           facingMode: facingMode,
-          // Remove ideal resolution to avoid over-constraining
-          // aspectRatio: { ideal: 4 / 3 },
-          // width: { ideal: 4032 },
-          // height: { ideal: 3024 }
+          aspectRatio: { ideal: 4 / 3 },
+          width: { ideal: 4032 },
+          height: { ideal: 3024 }
         },
         audio: false
       };
@@ -60,16 +59,39 @@ const CameraView = () => {
 
       if (capabilities.torch) setTorchSupported(true);
 
-      // Only attempt Zoom if explicitly supported, and wrap in try-catch
-      // We skip the automatic "Sweet Spot" for now to ensure stability
+      // 2. Safely apply "Sweet Spot" Zoom (1.5x)
       if (capabilities.zoom) {
         setZoomRange({
           min: capabilities.zoom.min,
           max: capabilities.zoom.max
         });
-        // Optional: Set to 1.0 initially to be safe
-        setZoom(1.0);
-        setShowZoom(true);
+
+        // Calculate sweet spot
+        const sweetSpotZoom = Math.min(Math.max(1.5, capabilities.zoom.min), capabilities.zoom.max);
+
+        // Apply zoom safely
+        if (track.applyConstraints) {
+          try {
+            await track.applyConstraints({ advanced: [{ zoom: sweetSpotZoom }] });
+            setZoom(sweetSpotZoom);
+            setShowZoom(true);
+          } catch (e) {
+            console.warn("Failed to apply sweet spot zoom:", e);
+            // Fallback: don't crash, just stay at 1x
+            setZoom(1.0);
+          }
+        }
+      }
+
+      // 3. Try to set continuous focus (safely)
+      if (track.applyConstraints) {
+        try {
+          await track.applyConstraints({
+            advanced: [{ focusMode: 'continuous-video' }]
+          });
+        } catch (e) {
+          console.warn("Failed to set continuous focus:", e);
+        }
       }
 
       setLoading(false);
