@@ -35,13 +35,13 @@ const CameraView = () => {
     }
 
     try {
-      // 1. Request 4:3 aspect ratio (OCR optimized)
+      // 1. Request 4K resolution with 4:3 aspect ratio (最佳化品質)
       const constraints = {
         video: {
           facingMode: facingMode,
           aspectRatio: { ideal: 4 / 3 },
-          width: { ideal: 4032 },
-          height: { ideal: 3024 }
+          width: { ideal: 4096 },
+          height: { ideal: 2160 }
         },
         audio: false
       };
@@ -59,17 +59,49 @@ const CameraView = () => {
 
       if (capabilities.torch) setTorchSupported(true);
 
-      // 2. Safely apply "Sweet Spot" Zoom (1.5x)
+      // 2. 曝光與白平衡優化
+      if (track.applyConstraints) {
+        try {
+          const advancedConstraints = [];
+
+          // Auto exposure mode
+          if (capabilities.exposureMode && capabilities.exposureMode.includes('continuous')) {
+            advancedConstraints.push({ exposureMode: 'continuous' });
+          }
+
+          // Exposure compensation +0.5 (增加亮度)
+          if (capabilities.exposureCompensation) {
+            const compensation = Math.min(Math.max(0.5, capabilities.exposureCompensation.min), capabilities.exposureCompensation.max);
+            advancedConstraints.push({ exposureCompensation: compensation });
+          }
+
+          // Auto white balance
+          if (capabilities.whiteBalanceMode && capabilities.whiteBalanceMode.includes('continuous')) {
+            advancedConstraints.push({ whiteBalanceMode: 'continuous' });
+          }
+
+          // Fill light mode (補光)
+          if (capabilities.fillLightMode && capabilities.fillLightMode.includes('auto')) {
+            advancedConstraints.push({ fillLightMode: 'auto' });
+          }
+
+          if (advancedConstraints.length > 0) {
+            await track.applyConstraints({ advanced: advancedConstraints });
+          }
+        } catch (e) {
+          console.warn("Failed to apply exposure/white balance settings:", e);
+        }
+      }
+
+      // 3. Safely apply "Sweet Spot" Zoom (1.5x)
       if (capabilities.zoom) {
         setZoomRange({
           min: capabilities.zoom.min,
           max: capabilities.zoom.max
         });
 
-        // Calculate sweet spot
         const sweetSpotZoom = Math.min(Math.max(1.5, capabilities.zoom.min), capabilities.zoom.max);
 
-        // Apply zoom safely
         if (track.applyConstraints) {
           try {
             await track.applyConstraints({ advanced: [{ zoom: sweetSpotZoom }] });
@@ -77,20 +109,57 @@ const CameraView = () => {
             setShowZoom(true);
           } catch (e) {
             console.warn("Failed to apply sweet spot zoom:", e);
-            // Fallback: don't crash, just stay at 1x
             setZoom(1.0);
           }
         }
       }
 
-      // 3. Try to set continuous focus (safely)
+      // 4. 雙重對焦策略
       if (track.applyConstraints) {
         try {
-          await track.applyConstraints({
-            advanced: [{ focusMode: 'continuous-video' }]
-          });
+          // 第一次對焦 (500ms): continuous + macro + 5cm
+          const firstFocusConstraints = [];
+
+          if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+            firstFocusConstraints.push({ focusMode: 'continuous' });
+          }
+
+          if (capabilities.focusDistance) {
+            // 5cm = 0.05m
+            const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
+            firstFocusConstraints.push({ focusDistance: focusDist });
+          }
+
+          if (firstFocusConstraints.length > 0) {
+            await track.applyConstraints({ advanced: firstFocusConstraints });
+          }
+
+          // 等待 500ms
+          await new Promise(r => setTimeout(r, 500));
+
+          // 第二次對焦 (700ms): single + macro + 5cm (鎖定)
+          const secondFocusConstraints = [];
+
+          if (capabilities.focusMode && capabilities.focusMode.includes('single-shot')) {
+            secondFocusConstraints.push({ focusMode: 'single-shot' });
+          } else if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
+            secondFocusConstraints.push({ focusMode: 'manual' });
+          }
+
+          if (capabilities.focusDistance) {
+            const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
+            secondFocusConstraints.push({ focusDistance: focusDist });
+          }
+
+          if (secondFocusConstraints.length > 0) {
+            await track.applyConstraints({ advanced: secondFocusConstraints });
+          }
+
+          // 等待 700ms
+          await new Promise(r => setTimeout(r, 700));
+
         } catch (e) {
-          console.warn("Failed to set continuous focus:", e);
+          console.warn("Failed to apply dual focus strategy:", e);
         }
       }
 
@@ -195,8 +264,37 @@ const CameraView = () => {
         await new Promise(r => setTimeout(r, 300));
       }
 
-      // Wait for focus
-      await new Promise(r => setTimeout(r, 400));
+      // 3. 拍照前的對焦鎖定 (single focus + 100ms)
+      if (stream) {
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+
+        try {
+          const lockFocusConstraints = [];
+
+          // 使用 single-shot 模式鎖定對焦
+          if (capabilities.focusMode && capabilities.focusMode.includes('single-shot')) {
+            lockFocusConstraints.push({ focusMode: 'single-shot' });
+          } else if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
+            lockFocusConstraints.push({ focusMode: 'manual' });
+          }
+
+          // 保持 5cm 焦距
+          if (capabilities.focusDistance) {
+            const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
+            lockFocusConstraints.push({ focusDistance: focusDist });
+          }
+
+          if (lockFocusConstraints.length > 0) {
+            await track.applyConstraints({ advanced: lockFocusConstraints });
+          }
+
+          // 等待 100ms 完成鎖定
+          await new Promise(r => setTimeout(r, 100));
+        } catch (e) {
+          console.warn("Failed to lock focus before capture:", e);
+        }
+      }
 
       setIsFlashing(true);
       setTimeout(() => setIsFlashing(false), 300);
@@ -209,6 +307,10 @@ const CameraView = () => {
 
       const context = canvas.getContext('2d');
 
+      // 5. 高品質渲染設定
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
+
       if (facingMode === 'user') {
         context.translate(canvas.width, 0);
         context.scale(-1, 1);
@@ -220,12 +322,14 @@ const CameraView = () => {
         await setTorch(false);
       }
 
-      const rawImageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      // 5. JPEG 品質 0.98 (接近無損)
+      const rawImageDataUrl = canvas.toDataURL('image/jpeg', 0.98);
 
+      // 4. 影像後處理強化：對比度 1.2 倍、亮度 +20
       const processedImage = await applyFilters(rawImageDataUrl, {
         sharpen: 0.5,
-        contrast: 1.1,
-        brightness: 0,
+        contrast: 1.2,
+        brightness: 20,
         grayscale: true
       });
 

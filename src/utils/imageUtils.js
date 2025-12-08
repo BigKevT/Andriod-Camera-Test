@@ -50,6 +50,11 @@ export const applyFilters = (imageDataUrl, options = {}) => {
             canvas.width = img.width;
             canvas.height = img.height;
             const ctx = canvas.getContext('2d');
+
+            // 高品質渲染設定
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
             ctx.drawImage(img, 0, 0);
 
             let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -112,7 +117,7 @@ export const applyFilters = (imageDataUrl, options = {}) => {
                 // Let's assume the contrast/grayscale is the most important part for now.
             }
 
-            resolve(canvas.toDataURL('image/jpeg', 0.95));
+            resolve(canvas.toDataURL('image/jpeg', 0.98));
         };
         img.src = imageDataUrl;
     });
