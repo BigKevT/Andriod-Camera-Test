@@ -8,35 +8,37 @@ const CameraView = () => {
   const [stream, setStream] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [facingMode, setFacingMode] = useState('environment'); // Default to back camera for OCR
+  const [facingMode, setFacingMode] = useState('environment');
   const [capturedImage, setCapturedImage] = useState(null);
   const [isFlashing, setIsFlashing] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
 
+  // New state for Zoom and Focus
+  const [zoom, setZoom] = useState(1);
+  const [zoomRange, setZoomRange] = useState({ min: 1, max: 1 });
+  const [showZoom, setShowZoom] = useState(false);
+  const [focusPoint, setFocusPoint] = useState(null); // {x, y} for animation
+
   const startCamera = useCallback(async () => {
     setLoading(true);
     setError(null);
     setTorchSupported(false);
+    setShowZoom(false);
 
-    // Stop existing stream if any
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
     }
 
     try {
-      // Advanced constraints for OCR
       const constraints = {
         video: {
           facingMode: facingMode,
-          // Request 4:3 aspect ratio (e.g., 4032x3024)
           aspectRatio: { ideal: 4 / 3 },
           width: { ideal: 4032 },
           height: { ideal: 3024 },
-          // Advanced modes (may not be supported by all browsers)
-          focusMode: 'continuous-picture',
-          exposureMode: 'continuous-auto',
-          whiteBalanceMode: 'single-shot'
+          // Try to force continuous focus for Samsung devices
+          focusMode: { ideal: 'continuous-picture' }
         },
         audio: false
       };
@@ -48,47 +50,117 @@ const CameraView = () => {
         videoRef.current.srcObject = newStream;
       }
 
-      // Check for torch support
       const track = newStream.getVideoTracks()[0];
-      const capabilities = track.getCapabilities();
+      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+
+      // Check Torch
       if (capabilities.torch) {
         setTorchSupported(true);
       }
 
-      // Apply advanced settings if supported
+      // Check Zoom
+      let initialZoom = 1.0;
+      if (capabilities.zoom) {
+        setZoomRange({
+          min: capabilities.zoom.min,
+          max: capabilities.zoom.max
+        });
+
+        // Sweet Spot Strategy: Default to 1.5x (or min if > 1.5, or max if < 1.5)
+        // This forces the user to move back, avoiding MFD issues on flagship phones
+        initialZoom = Math.min(Math.max(1.5, capabilities.zoom.min), capabilities.zoom.max);
+        setZoom(initialZoom);
+        setShowZoom(true);
+      }
+
+      // Apply initial advanced constraints
       if (track.applyConstraints) {
         try {
           await track.applyConstraints({
             advanced: [{
               focusMode: 'continuous-picture',
               exposureMode: 'continuous-auto',
-              exposureCompensation: 0,
-              meteringMode: 'center-weighted',
-              whiteBalanceMode: 'auto'
+              whiteBalanceMode: 'auto',
+              zoom: initialZoom
             }]
           });
         } catch (e) {
-          console.warn("Advanced constraints not fully supported:", e);
+          console.warn("Advanced constraints warning:", e);
         }
       }
 
       setLoading(false);
     } catch (err) {
       console.error("Error accessing camera:", err);
-      setError("無法存取相機。請確保您已允許相機權限。(Unable to access camera. Please ensure you have granted camera permissions.)");
+      setError("無法存取相機。請確保您已允許相機權限。(Unable to access camera.)");
       setLoading(false);
     }
-  }, [facingMode]);
+  }, [facingMode, stream]); // Added stream to dependency array for cleanup logic
 
   useEffect(() => {
     startCamera();
-
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [startCamera]);
+  }, [startCamera, stream]); // Added stream to dependency array for cleanup logic
+
+  const handleZoomChange = async (e) => {
+    const newZoom = parseFloat(e.target.value);
+    setZoom(newZoom);
+
+    if (stream) {
+      const track = stream.getVideoTracks()[0];
+      try {
+        await track.applyConstraints({
+          advanced: [{ zoom: newZoom }]
+        });
+      } catch (err) {
+        console.error("Zoom failed:", err);
+      }
+    }
+  };
+
+  const handleTapToFocus = async (e) => {
+    // 1. Show animation at tap location
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    setFocusPoint({ x, y });
+    setTimeout(() => setFocusPoint(null), 1000); // Hide after animation
+
+    // 2. Trigger re-focus logic
+    if (stream) {
+      const track = stream.getVideoTracks()[0];
+      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+
+      try {
+        // Strategy: Toggle focus mode or slightly adjust zoom to force ISP to re-evaluate
+        // Note: 'focusMode' isn't always supported in applyConstraints for all browsers
+        if (capabilities.focusMode && capabilities.focusMode.includes('macro')) {
+          await track.applyConstraints({ advanced: [{ focusMode: 'macro' }] });
+          await new Promise(r => setTimeout(r, 200));
+          await track.applyConstraints({ advanced: [{ focusMode: 'continuous-picture' }] });
+        } else {
+          // Fallback: slight zoom wiggle if zoom is supported
+          if (showZoom) {
+            const currentZoom = zoom;
+            const wiggleZoom = Math.min(currentZoom + 0.1, zoomRange.max);
+            await track.applyConstraints({ advanced: [{ zoom: wiggleZoom }] });
+            await new Promise(r => setTimeout(r, 100));
+            await track.applyConstraints({ advanced: [{ zoom: currentZoom }] });
+          } else {
+            // Just re-apply continuous-picture
+            await track.applyConstraints({ advanced: [{ focusMode: 'continuous-picture' }] });
+          }
+        }
+      } catch (err) {
+        console.warn("Focus trigger failed:", err);
+      }
+    }
+  };
 
   const switchCamera = () => {
     setFacingMode(prevMode => prevMode === 'user' ? 'environment' : 'user');
@@ -112,21 +184,15 @@ const CameraView = () => {
     setProcessing(true);
 
     try {
-      // Step A: Check Low Light & Enable Torch
       const lowLight = isLowLight(videoRef.current);
       if (lowLight && torchSupported) {
         await setTorch(true);
-        // Wait for light to stabilize
         await new Promise(r => setTimeout(r, 300));
       }
 
-      // Step B: Trigger Focus (Simulated)
-      // Since we can't manually trigger focus point in Web API easily,
-      // we rely on the continuous focus we set earlier.
-      // We wait a bit to ensure focus is settled, especially if we just turned on the light.
+      // Wait for focus
       await new Promise(r => setTimeout(r, 400));
 
-      // Step C: Capture
       setIsFlashing(true);
       setTimeout(() => setIsFlashing(false), 300);
 
@@ -145,12 +211,10 @@ const CameraView = () => {
 
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Turn off torch immediately after capture
       if (lowLight && torchSupported) {
         await setTorch(false);
       }
 
-      // Step D: Post-processing (OCR Optimization)
       const rawImageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
       const processedImage = await applyFilters(rawImageDataUrl, {
@@ -191,13 +255,38 @@ const CameraView = () => {
         </div>
       )}
 
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className={`camera-video ${facingMode === 'environment' ? 'back-camera' : ''}`}
-      />
+      {/* Video Preview with Tap to Focus */}
+      <div className="video-wrapper" onClick={handleTapToFocus}>
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`camera-video ${facingMode === 'environment' ? 'back-camera' : ''}`}
+        />
+        {focusPoint && (
+          <div
+            className="focus-ring"
+            style={{ top: focusPoint.y, left: focusPoint.x }}
+          />
+        )}
+      </div>
+
+      {/* Zoom Slider */}
+      {showZoom && (
+        <div className="zoom-controls">
+          <span>1x</span>
+          <input
+            type="range"
+            min={zoomRange.min}
+            max={Math.min(zoomRange.max, 5)} // Limit max zoom to 5x for UI
+            step="0.1"
+            value={zoom}
+            onChange={handleZoomChange}
+          />
+          <span>{Math.min(zoomRange.max, 5)}x</span>
+        </div>
+      )}
 
       <div className="camera-overlay">
         <div className="control-btn" style={{ opacity: capturedImage ? 1 : 0, pointerEvents: capturedImage ? 'auto' : 'none' }}>
