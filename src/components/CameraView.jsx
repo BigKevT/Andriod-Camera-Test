@@ -93,15 +93,15 @@ const CameraView = () => {
         }
       }
 
-      // 2. Safely apply "Sweet Spot" Zoom (1.1x)
+      // 2. Safely apply "Sweet Spot" Zoom (1.0x - no zoom)
       if (capabilities.zoom) {
         setZoomRange({
           min: capabilities.zoom.min,
           max: capabilities.zoom.max
         });
 
-        // Calculate sweet spot
-        const sweetSpotZoom = Math.min(Math.max(1.1, capabilities.zoom.min), capabilities.zoom.max);
+        // No zoom - keep at 1.0x
+        const sweetSpotZoom = 1.0;
 
         if (track.applyConstraints) {
           try {
