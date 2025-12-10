@@ -81,9 +81,9 @@ const CameraView = () => {
           }
 
           // Fill light mode (補光)
-          if (capabilities.fillLightMode && capabilities.fillLightMode.includes('auto')) {
-            advancedConstraints.push({ fillLightMode: 'auto' });
-          }
+          // if (capabilities.fillLightMode && capabilities.fillLightMode.includes('auto')) {
+          //   advancedConstraints.push({ fillLightMode: 'auto' });
+          // }
 
           if (advancedConstraints.length > 0) {
             await track.applyConstraints({ advanced: advancedConstraints });
@@ -115,53 +115,53 @@ const CameraView = () => {
       }
 
       // 4. 雙重對焦策略
-      if (track.applyConstraints) {
-        try {
-          // 第一次對焦 (500ms): continuous + macro + 5cm
-          const firstFocusConstraints = [];
+      // if (track.applyConstraints) {
+      //   try {
+      //     // 第一次對焦 (500ms): continuous + macro + 5cm
+      //     const firstFocusConstraints = [];
 
-          if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-            firstFocusConstraints.push({ focusMode: 'continuous' });
-          }
+      //     if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+      //       firstFocusConstraints.push({ focusMode: 'continuous' });
+      //     }
 
-          if (capabilities.focusDistance) {
-            // 5cm = 0.05m
-            const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
-            firstFocusConstraints.push({ focusDistance: focusDist });
-          }
+      //     if (capabilities.focusDistance) {
+      //       // 5cm = 0.05m
+      //       const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
+      //       firstFocusConstraints.push({ focusDistance: focusDist });
+      //     }
 
-          if (firstFocusConstraints.length > 0) {
-            await track.applyConstraints({ advanced: firstFocusConstraints });
-          }
+      //     if (firstFocusConstraints.length > 0) {
+      //       await track.applyConstraints({ advanced: firstFocusConstraints });
+      //     }
 
-          // 等待 500ms
-          await new Promise(r => setTimeout(r, 500));
+      //     // 等待 500ms
+      //     await new Promise(r => setTimeout(r, 500));
 
-          // 第二次對焦 (700ms): single + macro + 5cm (鎖定)
-          const secondFocusConstraints = [];
+      //     // 第二次對焦 (700ms): single + macro + 5cm (鎖定)
+      //     const secondFocusConstraints = [];
 
-          if (capabilities.focusMode && capabilities.focusMode.includes('single-shot')) {
-            secondFocusConstraints.push({ focusMode: 'single-shot' });
-          } else if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
-            secondFocusConstraints.push({ focusMode: 'manual' });
-          }
+      //     if (capabilities.focusMode && capabilities.focusMode.includes('single-shot')) {
+      //       secondFocusConstraints.push({ focusMode: 'single-shot' });
+      //     } else if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
+      //       secondFocusConstraints.push({ focusMode: 'manual' });
+      //     }
 
-          if (capabilities.focusDistance) {
-            const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
-            secondFocusConstraints.push({ focusDistance: focusDist });
-          }
+      //     if (capabilities.focusDistance) {
+      //       const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
+      //       secondFocusConstraints.push({ focusDistance: focusDist });
+      //     }
 
-          if (secondFocusConstraints.length > 0) {
-            await track.applyConstraints({ advanced: secondFocusConstraints });
-          }
+      //     if (secondFocusConstraints.length > 0) {
+      //       await track.applyConstraints({ advanced: secondFocusConstraints });
+      //     }
 
-          // 等待 700ms
-          await new Promise(r => setTimeout(r, 700));
+      //     // 等待 700ms
+      //     await new Promise(r => setTimeout(r, 700));
 
-        } catch (e) {
-          console.warn("Failed to apply dual focus strategy:", e);
-        }
-      }
+      //   } catch (e) {
+      //     console.warn("Failed to apply dual focus strategy:", e);
+      //   }
+      // }
 
       setLoading(false);
     } catch (err) {
