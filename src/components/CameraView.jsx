@@ -94,26 +94,26 @@ const CameraView = () => {
       // }
 
       // // 2. Safely apply "Sweet Spot" Zoom (1.0x - no zoom)
-      // if (capabilities.zoom) {
-      //   setZoomRange({
-      //     min: capabilities.zoom.min,
-      //     max: capabilities.zoom.max
-      //   });
+      if (capabilities.zoom) {
+        setZoomRange({
+          min: capabilities.zoom.min,
+          max: capabilities.zoom.max
+        });
 
-      //   // No zoom - keep at 1.0x
-      //   const sweetSpotZoom = 1.0;
+        // No zoom - keep at 1.0x
+        const sweetSpotZoom = 1.0;
 
-      //   if (track.applyConstraints) {
-      //     try {
-      //       await track.applyConstraints({ advanced: [{ zoom: sweetSpotZoom }] });
-      //       setZoom(sweetSpotZoom);
-      //       setShowZoom(true);
-      //     } catch (e) {
-      //       console.warn("Failed to apply sweet spot zoom:", e);
-      //       setZoom(1.0);
-      //     }
-      //   }
-      // }
+        if (track.applyConstraints) {
+          try {
+            await track.applyConstraints({ advanced: [{ zoom: sweetSpotZoom }] });
+            setZoom(sweetSpotZoom);
+            setShowZoom(true);
+          } catch (e) {
+            console.warn("Failed to apply sweet spot zoom:", e);
+            setZoom(1.0);
+          }
+        }
+      }
 
       // 4. 雙重對焦策略
       // if (track.applyConstraints) {
