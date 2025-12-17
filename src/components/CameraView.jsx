@@ -40,8 +40,8 @@ const CameraView = () => {
         video: {
           facingMode: facingMode,
           aspectRatio: { ideal: 4 / 3 },
-          width: { ideal: 4096 },
-          height: { ideal: 2160 }
+          width: { ideal: 1920 },
+          height: { ideal: 1440 }
         },
         audio: false
       };
