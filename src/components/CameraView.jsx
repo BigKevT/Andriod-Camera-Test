@@ -95,82 +95,82 @@ const CameraView = () => {
 
       // // 2. Safely apply "Sweet Spot" Zoom (1.0x - no zoom)
       if (capabilities.zoom) {
-        setZoomRange({
-          min: capabilities.zoom.min,
-          max: capabilities.zoom.max
-        });
+        //   setZoomRange({
+        //     min: capabilities.zoom.min,
+        //     max: capabilities.zoom.max
+        //   });
 
-        // No zoom - keep at 1.0x
-        const sweetSpotZoom = 1.0;
+        //   // No zoom - keep at 1.0x
+        //   const sweetSpotZoom = 1.0;
 
+        //   if (track.applyConstraints) {
+        //     try {
+        //       await track.applyConstraints({ advanced: [{ zoom: sweetSpotZoom }] });
+        //       setZoom(sweetSpotZoom);
+        //       setShowZoom(true);
+        //     } catch (e) {
+        //       console.warn("Failed to apply sweet spot zoom:", e);
+        //       setZoom(1.0);
+        //     }
+        //   }
+        // }
+
+        // 4. 雙重對焦策略
         if (track.applyConstraints) {
           try {
-            await track.applyConstraints({ advanced: [{ zoom: sweetSpotZoom }] });
-            setZoom(sweetSpotZoom);
-            setShowZoom(true);
+            // 第一次對焦 (500ms): continuous + macro + 5cm
+            const firstFocusConstraints = [];
+
+            if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+              firstFocusConstraints.push({ focusMode: 'continuous' });
+            }
+
+            if (capabilities.focusDistance) {
+              // 5cm = 0.05m
+              const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
+              firstFocusConstraints.push({ focusDistance: focusDist });
+            }
+
+            if (firstFocusConstraints.length > 0) {
+              await track.applyConstraints({ advanced: firstFocusConstraints });
+            }
+
+            // 等待 500ms
+            await new Promise(r => setTimeout(r, 500));
+
+            // 第二次對焦 (700ms): single + macro + 5cm (鎖定)
+            const secondFocusConstraints = [];
+
+            if (capabilities.focusMode && capabilities.focusMode.includes('single-shot')) {
+              secondFocusConstraints.push({ focusMode: 'single-shot' });
+            } else if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
+              secondFocusConstraints.push({ focusMode: 'manual' });
+            }
+
+            if (capabilities.focusDistance) {
+              const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
+              secondFocusConstraints.push({ focusDistance: focusDist });
+            }
+
+            if (secondFocusConstraints.length > 0) {
+              await track.applyConstraints({ advanced: secondFocusConstraints });
+            }
+
+            // 等待 700ms
+            await new Promise(r => setTimeout(r, 700));
+
           } catch (e) {
-            console.warn("Failed to apply sweet spot zoom:", e);
-            setZoom(1.0);
+            console.warn("Failed to apply dual focus strategy:", e);
           }
         }
+
+        setLoading(false);
+      } catch (err) {
+        console.error("Error accessing camera:", err);
+        setError(`無法存取相機 (${err.name}: ${err.message})。`);
+        setLoading(false);
       }
-
-      // 4. 雙重對焦策略
-      // if (track.applyConstraints) {
-      //   try {
-      //     // 第一次對焦 (500ms): continuous + macro + 5cm
-      //     const firstFocusConstraints = [];
-
-      //     if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-      //       firstFocusConstraints.push({ focusMode: 'continuous' });
-      //     }
-
-      //     if (capabilities.focusDistance) {
-      //       // 5cm = 0.05m
-      //       const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
-      //       firstFocusConstraints.push({ focusDistance: focusDist });
-      //     }
-
-      //     if (firstFocusConstraints.length > 0) {
-      //       await track.applyConstraints({ advanced: firstFocusConstraints });
-      //     }
-
-      //     // 等待 500ms
-      //     await new Promise(r => setTimeout(r, 500));
-
-      //     // 第二次對焦 (700ms): single + macro + 5cm (鎖定)
-      //     const secondFocusConstraints = [];
-
-      //     if (capabilities.focusMode && capabilities.focusMode.includes('single-shot')) {
-      //       secondFocusConstraints.push({ focusMode: 'single-shot' });
-      //     } else if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
-      //       secondFocusConstraints.push({ focusMode: 'manual' });
-      //     }
-
-      //     if (capabilities.focusDistance) {
-      //       const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
-      //       secondFocusConstraints.push({ focusDistance: focusDist });
-      //     }
-
-      //     if (secondFocusConstraints.length > 0) {
-      //       await track.applyConstraints({ advanced: secondFocusConstraints });
-      //     }
-
-      //     // 等待 700ms
-      //     await new Promise(r => setTimeout(r, 700));
-
-      //   } catch (e) {
-      //     console.warn("Failed to apply dual focus strategy:", e);
-      //   }
-      // }
-
-      setLoading(false);
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      setError(`無法存取相機 (${err.name}: ${err.message})。`);
-      setLoading(false);
-    }
-  }, [facingMode]);
+    }, [facingMode]);
 
   useEffect(() => {
     startCamera();
