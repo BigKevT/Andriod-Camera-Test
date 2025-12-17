@@ -40,8 +40,6 @@ const CameraView = () => {
         video: {
           facingMode: facingMode,
           aspectRatio: { ideal: 4 / 3 },
-          width: { ideal: 4096 },
-          height: { ideal: 2160 }
         },
         audio: false
       };
@@ -59,61 +57,61 @@ const CameraView = () => {
 
       if (capabilities.torch) setTorchSupported(true);
 
-      // 2. 曝光與白平衡優化
-      if (track.applyConstraints) {
-        try {
-          const advancedConstraints = [];
+      // // 2. 曝光與白平衡優化
+      // if (track.applyConstraints) {
+      //   try {
+      //     const advancedConstraints = [];
 
-          // Auto exposure mode
-          if (capabilities.exposureMode && capabilities.exposureMode.includes('continuous')) {
-            advancedConstraints.push({ exposureMode: 'continuous' });
-          }
+      //     // Auto exposure mode
+      //     if (capabilities.exposureMode && capabilities.exposureMode.includes('continuous')) {
+      //       advancedConstraints.push({ exposureMode: 'continuous' });
+      //     }
 
-          // Exposure compensation +0.5 (增加亮度)
-          if (capabilities.exposureCompensation) {
-            const compensation = Math.min(Math.max(0.5, capabilities.exposureCompensation.min), capabilities.exposureCompensation.max);
-            advancedConstraints.push({ exposureCompensation: compensation });
-          }
+      //     // Exposure compensation +0.5 (增加亮度)
+      //     if (capabilities.exposureCompensation) {
+      //       const compensation = Math.min(Math.max(0.5, capabilities.exposureCompensation.min), capabilities.exposureCompensation.max);
+      //       advancedConstraints.push({ exposureCompensation: compensation });
+      //     }
 
-          // Auto white balance
-          if (capabilities.whiteBalanceMode && capabilities.whiteBalanceMode.includes('continuous')) {
-            advancedConstraints.push({ whiteBalanceMode: 'continuous' });
-          }
+      //     // Auto white balance
+      //     if (capabilities.whiteBalanceMode && capabilities.whiteBalanceMode.includes('continuous')) {
+      //       advancedConstraints.push({ whiteBalanceMode: 'continuous' });
+      //     }
 
-          // Fill light mode (補光)
-          // if (capabilities.fillLightMode && capabilities.fillLightMode.includes('auto')) {
-          //   advancedConstraints.push({ fillLightMode: 'auto' });
-          // }
+      //     // Fill light mode (補光)
+      //     // if (capabilities.fillLightMode && capabilities.fillLightMode.includes('auto')) {
+      //     //   advancedConstraints.push({ fillLightMode: 'auto' });
+      //     // }
 
-          if (advancedConstraints.length > 0) {
-            await track.applyConstraints({ advanced: advancedConstraints });
-          }
-        } catch (e) {
-          console.warn("Failed to apply exposure/white balance settings:", e);
-        }
-      }
+      //     if (advancedConstraints.length > 0) {
+      //       await track.applyConstraints({ advanced: advancedConstraints });
+      //     }
+      //   } catch (e) {
+      //     console.warn("Failed to apply exposure/white balance settings:", e);
+      //   }
+      // }
 
-      // 2. Safely apply "Sweet Spot" Zoom (1.0x - no zoom)
-      if (capabilities.zoom) {
-        setZoomRange({
-          min: capabilities.zoom.min,
-          max: capabilities.zoom.max
-        });
+      // // 2. Safely apply "Sweet Spot" Zoom (1.0x - no zoom)
+      // if (capabilities.zoom) {
+      //   setZoomRange({
+      //     min: capabilities.zoom.min,
+      //     max: capabilities.zoom.max
+      //   });
 
-        // No zoom - keep at 1.0x
-        const sweetSpotZoom = 1.0;
+      //   // No zoom - keep at 1.0x
+      //   const sweetSpotZoom = 1.0;
 
-        if (track.applyConstraints) {
-          try {
-            await track.applyConstraints({ advanced: [{ zoom: sweetSpotZoom }] });
-            setZoom(sweetSpotZoom);
-            setShowZoom(true);
-          } catch (e) {
-            console.warn("Failed to apply sweet spot zoom:", e);
-            setZoom(1.0);
-          }
-        }
-      }
+      //   if (track.applyConstraints) {
+      //     try {
+      //       await track.applyConstraints({ advanced: [{ zoom: sweetSpotZoom }] });
+      //       setZoom(sweetSpotZoom);
+      //       setShowZoom(true);
+      //     } catch (e) {
+      //       console.warn("Failed to apply sweet spot zoom:", e);
+      //       setZoom(1.0);
+      //     }
+      //   }
+      // }
 
       // 4. 雙重對焦策略
       // if (track.applyConstraints) {
