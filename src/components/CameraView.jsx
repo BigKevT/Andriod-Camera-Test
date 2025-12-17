@@ -41,7 +41,7 @@ const CameraView = () => {
           facingMode: facingMode,
           aspectRatio: { ideal: 4 / 3 },
           width: { ideal: 4096 },
-          height: { ideal: 2160 }
+          height: { ideal: 3024 }
         },
         audio: false
       };
@@ -126,8 +126,8 @@ const CameraView = () => {
           }
 
           if (capabilities.focusDistance) {
-            // 5cm = 0.05m
-            const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
+            // 15cm = 0.15m (適合拍攝身分證距離)
+            const focusDist = Math.min(Math.max(0.15, capabilities.focusDistance.min), capabilities.focusDistance.max);
             firstFocusConstraints.push({ focusDistance: focusDist });
           }
 
@@ -148,7 +148,8 @@ const CameraView = () => {
           }
 
           if (capabilities.focusDistance) {
-            const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
+            // 15cm = 0.15m (適合拍攝身分證距離)
+            const focusDist = Math.min(Math.max(0.15, capabilities.focusDistance.min), capabilities.focusDistance.max);
             secondFocusConstraints.push({ focusDistance: focusDist });
           }
 
@@ -280,9 +281,9 @@ const CameraView = () => {
             lockFocusConstraints.push({ focusMode: 'manual' });
           }
 
-          // 保持 5cm 焦距
+          // 保持 15cm 焦距 (適合拍攝身分證距離)
           if (capabilities.focusDistance) {
-            const focusDist = Math.min(Math.max(0.05, capabilities.focusDistance.min), capabilities.focusDistance.max);
+            const focusDist = Math.min(Math.max(0.15, capabilities.focusDistance.min), capabilities.focusDistance.max);
             lockFocusConstraints.push({ focusDistance: focusDist });
           }
 
