@@ -35,13 +35,15 @@ const CameraView = () => {
     }
 
     try {
-      // 1. Request 4K resolution with 4:3 aspect ratio (最佳化品質)
+      // 1. Request maximum resolution with 4:3 aspect ratio
+      // Note: Samsung devices ignore focusMode/focusDistance constraints
+      // We rely on native autofocus instead
       const constraints = {
         video: {
           facingMode: facingMode,
           aspectRatio: { ideal: 4 / 3 },
-          width: { ideal: 4096 },
-          height: { ideal: 3024 }
+          width: { ideal: 4032, min: 1920 },
+          height: { ideal: 3024, min: 1440 }
         },
         audio: false
       };
@@ -57,50 +59,23 @@ const CameraView = () => {
       const track = newStream.getVideoTracks()[0];
       const capabilities = track.getCapabilities ? track.getCapabilities() : {};
 
+      // Log capabilities for debugging (especially useful for Samsung devices)
+      console.log('Camera capabilities:', {
+        focusMode: capabilities.focusMode,
+        focusDistance: capabilities.focusDistance,
+        zoom: capabilities.zoom ? `${capabilities.zoom.min}-${capabilities.zoom.max}` : 'not supported',
+        torch: capabilities.torch || false
+      });
+
       if (capabilities.torch) setTorchSupported(true);
 
-      // // 2. 曝光與白平衡優化
-      // if (track.applyConstraints) {
-      //   try {
-      //     const advancedConstraints = [];
-
-      //     // Auto exposure mode
-      //     if (capabilities.exposureMode && capabilities.exposureMode.includes('continuous')) {
-      //       advancedConstraints.push({ exposureMode: 'continuous' });
-      //     }
-
-      //     // Exposure compensation +0.5 (增加亮度)
-      //     if (capabilities.exposureCompensation) {
-      //       const compensation = Math.min(Math.max(0.5, capabilities.exposureCompensation.min), capabilities.exposureCompensation.max);
-      //       advancedConstraints.push({ exposureCompensation: compensation });
-      //     }
-
-      //     // Auto white balance
-      //     if (capabilities.whiteBalanceMode && capabilities.whiteBalanceMode.includes('continuous')) {
-      //       advancedConstraints.push({ whiteBalanceMode: 'continuous' });
-      //     }
-
-      //     // Fill light mode (補光)
-      //     // if (capabilities.fillLightMode && capabilities.fillLightMode.includes('auto')) {
-      //     //   advancedConstraints.push({ fillLightMode: 'auto' });
-      //     // }
-
-      //     if (advancedConstraints.length > 0) {
-      //       await track.applyConstraints({ advanced: advancedConstraints });
-      //     }
-      //   } catch (e) {
-      //     console.warn("Failed to apply exposure/white balance settings:", e);
-      //   }
-      // }
-
-      // // 2. Safely apply "Sweet Spot" Zoom (1.0x - no zoom)
+      // 2. Setup zoom if supported (keep at 1.0x for best quality)
       if (capabilities.zoom) {
         setZoomRange({
           min: capabilities.zoom.min,
           max: capabilities.zoom.max
         });
 
-        // No zoom - keep at 1.0x
         const sweetSpotZoom = 1.0;
 
         if (track.applyConstraints) {
@@ -109,61 +84,15 @@ const CameraView = () => {
             setZoom(sweetSpotZoom);
             setShowZoom(true);
           } catch (e) {
-            console.warn("Failed to apply sweet spot zoom:", e);
+            console.warn("Failed to apply zoom:", e);
             setZoom(1.0);
           }
         }
       }
 
-      // 4. 雙重對焦策略
-      if (track.applyConstraints) {
-        try {
-          // 第一次對焦 (500ms): continuous + macro + 5cm
-          const firstFocusConstraints = [];
-
-          if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-            firstFocusConstraints.push({ focusMode: 'continuous' });
-          }
-
-          if (capabilities.focusDistance) {
-            // 15cm = 0.15m (適合拍攝身分證距離)
-            const focusDist = Math.min(Math.max(0.15, capabilities.focusDistance.min), capabilities.focusDistance.max);
-            firstFocusConstraints.push({ focusDistance: focusDist });
-          }
-
-          if (firstFocusConstraints.length > 0) {
-            await track.applyConstraints({ advanced: firstFocusConstraints });
-          }
-
-          // 等待 500ms
-          await new Promise(r => setTimeout(r, 500));
-
-          // 第二次對焦 (700ms): single + macro + 5cm (鎖定)
-          const secondFocusConstraints = [];
-
-          if (capabilities.focusMode && capabilities.focusMode.includes('single-shot')) {
-            secondFocusConstraints.push({ focusMode: 'single-shot' });
-          } else if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
-            secondFocusConstraints.push({ focusMode: 'manual' });
-          }
-
-          if (capabilities.focusDistance) {
-            // 15cm = 0.15m (適合拍攝身分證距離)
-            const focusDist = Math.min(Math.max(0.15, capabilities.focusDistance.min), capabilities.focusDistance.max);
-            secondFocusConstraints.push({ focusDistance: focusDist });
-          }
-
-          if (secondFocusConstraints.length > 0) {
-            await track.applyConstraints({ advanced: secondFocusConstraints });
-          }
-
-          // 等待 700ms
-          await new Promise(r => setTimeout(r, 700));
-
-        } catch (e) {
-          console.warn("Failed to apply dual focus strategy:", e);
-        }
-      }
+      // Note: Manual focus constraints (focusMode, focusDistance) are removed
+      // because they don't work on Samsung devices (S21+, Note20, etc.)
+      // We rely on the device's native autofocus instead
 
       setLoading(false);
     } catch (err) {
@@ -266,37 +195,8 @@ const CameraView = () => {
         await new Promise(r => setTimeout(r, 300));
       }
 
-      // 3. 拍照前的對焦鎖定 (single focus + 100ms)
-      if (stream) {
-        const track = stream.getVideoTracks()[0];
-        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-
-        try {
-          const lockFocusConstraints = [];
-
-          // 使用 single-shot 模式鎖定對焦
-          if (capabilities.focusMode && capabilities.focusMode.includes('single-shot')) {
-            lockFocusConstraints.push({ focusMode: 'single-shot' });
-          } else if (capabilities.focusMode && capabilities.focusMode.includes('manual')) {
-            lockFocusConstraints.push({ focusMode: 'manual' });
-          }
-
-          // 保持 15cm 焦距 (適合拍攝身分證距離)
-          if (capabilities.focusDistance) {
-            const focusDist = Math.min(Math.max(0.15, capabilities.focusDistance.min), capabilities.focusDistance.max);
-            lockFocusConstraints.push({ focusDistance: focusDist });
-          }
-
-          if (lockFocusConstraints.length > 0) {
-            await track.applyConstraints({ advanced: lockFocusConstraints });
-          }
-
-          // 等待 100ms 完成鎖定
-          await new Promise(r => setTimeout(r, 100));
-        } catch (e) {
-          console.warn("Failed to lock focus before capture:", e);
-        }
-      }
+      // Give autofocus time to settle (especially important for Samsung devices)
+      await new Promise(r => setTimeout(r, 300));
 
       setIsFlashing(true);
       setTimeout(() => setIsFlashing(false), 300);
@@ -327,9 +227,9 @@ const CameraView = () => {
       // 5. JPEG 品質 0.98 (接近無損)
       const rawImageDataUrl = canvas.toDataURL('image/jpeg', 0.98);
 
-      // 4. 影像後處理強化：對比度 1.2 倍、亮度 +20
+      // 4. Image post-processing: increased sharpening to compensate for autofocus
       const processedImage = await applyFilters(rawImageDataUrl, {
-        sharpen: 0.5,
+        sharpen: 0.7,  // Increased from 0.5 for better edge definition
         contrast: 1.2,
         brightness: 20,
         grayscale: true
